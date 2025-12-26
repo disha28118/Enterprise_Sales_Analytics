@@ -1,46 +1,46 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
 
 # --------------------------------------------------
 # PAGE CONFIG
 # --------------------------------------------------
 st.set_page_config(
     page_title="Enterprise Sales Analytics",
-    page_icon="",
+    page_icon="📊",
     layout="wide"
 )
 
 # --------------------------------------------------
-# DARK PROFESSIONAL THEME
+# SAFE, SCOPED STYLING (NO GHOST BOXES)
 # --------------------------------------------------
 st.markdown("""
 <style>
-body { background-color: #0E1117; }
+body { background-color: #0B0F19; }
 
-.card {
-    background-color: #111827;
+.kpi-box {
+    background: rgba(255,255,255,0.05);
+    border-radius: 14px;
     padding: 18px;
-    border-radius: 12px;
-    border: 1px solid #1F2937;
+    border: 1px solid rgba(255,255,255,0.08);
 }
 
-.card-title {
+.kpi-title {
     color: #9CA3AF;
-    font-size: 14px;
-    margin-bottom: 8px;
+    font-size: 13px;
 }
 
-.card-value {
-    color: white;
-    font-size: 28px;
+.kpi-value {
+    color: #F9FAFB;
+    font-size: 32px;
     font-weight: 700;
 }
 
 .section-title {
     color: #E5E7EB;
     font-size: 18px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -59,12 +59,15 @@ df = load_data()
 # --------------------------------------------------
 date_col = next(c for c in df.columns if "date" in c.lower())
 sales_col = next(c for c in df.columns if "sales" in c.lower() or "revenue" in c.lower())
-region_col = next(c for c in df.columns if "region" in c.lower() or "market" in c.lower() or "country" in c.lower())
+region_col = next(
+    c for c in df.columns
+    if "region" in c.lower() or "market" in c.lower() or "country" in c.lower()
+)
 product_col = next(c for c in df.columns if "category" in c.lower() or "product" in c.lower())
 
 df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
 df = df.dropna(subset=[date_col])
-df["Month"] = df[date_col].dt.strftime("%b")
+df["YearMonth"] = df[date_col].dt.to_period("M").astype(str)
 
 # --------------------------------------------------
 # SIDEBAR FILTERS
@@ -98,106 +101,151 @@ filtered_df = df[
 # --------------------------------------------------
 # HEADER
 # --------------------------------------------------
-st.title("Enterprise Sales Analytics Dashboard")
+st.title("Enterprise Sales Analytics")
+st.caption("Modern • Interactive • Executive BI Dashboard")
 
 # --------------------------------------------------
-# KPI CARDS
+# KPI ROW
 # --------------------------------------------------
 k1, k2, k3 = st.columns(3)
 
 with k1:
-    st.markdown(f"""
-    <div class="card">
-        <div class="card-title">Total Revenue</div>
-        <div class="card-value">₹{filtered_df[sales_col].sum():,.0f}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="kpi-box">
+            <div class="kpi-title">Total Revenue</div>
+            <div class="kpi-value">₹{filtered_df[sales_col].sum():,.0f}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 with k2:
-    st.markdown(f"""
-    <div class="card">
-        <div class="card-title">Average Order Value</div>
-        <div class="card-value">₹{filtered_df[sales_col].mean():,.0f}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="kpi-box">
+            <div class="kpi-title">Avg Order Value</div>
+            <div class="kpi-value">₹{filtered_df[sales_col].mean():,.0f}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 with k3:
-    st.markdown(f"""
-    <div class="card">
-        <div class="card-title">Total Orders</div>
-        <div class="card-value">{len(filtered_df):,}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# --------------------------------------------------
-# CHART GRID (LIKE YOUR IMAGE)
-# --------------------------------------------------
-c1, c2 = st.columns(2)
-
-# -------- LINE CHART --------
-with c1:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Sales by Region</div>', unsafe_allow_html=True)
-
-    region_trend = (
-        filtered_df
-        .groupby(["Month", region_col])[sales_col]
-        .sum()
-        .unstack()
-        .fillna(0)
+    st.markdown(
+        f"""
+        <div class="kpi-box">
+            <div class="kpi-title">Total Orders</div>
+            <div class="kpi-value">{len(filtered_df):,}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
-    fig, ax = plt.subplots()
-    for col in region_trend.columns:
-        ax.plot(region_trend.index, region_trend[col], marker="o", label=col)
+# --------------------------------------------------
+# SALES BY REGION (LINE WITH DOTS)
+# --------------------------------------------------
+st.markdown('<div class="section-title">Sales by Region</div>', unsafe_allow_html=True)
 
-    ax.legend()
-    ax.grid(alpha=0.3)
-    st.pyplot(fig, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+line_df = (
+    filtered_df
+    .groupby(["YearMonth", region_col])[sales_col]
+    .sum()
+    .reset_index()
+)
 
-# -------- DONUT CHART --------
-with c2:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Sales Distribution</div>', unsafe_allow_html=True)
+fig = px.line(
+    line_df,
+    x="YearMonth",
+    y=sales_col,
+    color=region_col,
+    markers=True,
+    template="plotly_dark"
+)
+fig.update_layout(height=350)
+st.plotly_chart(fig, use_container_width=True)
 
-    product_share = filtered_df.groupby(product_col)[sales_col].sum()
+# --------------------------------------------------
+# SALES DISTRIBUTION (DONUT)
+# --------------------------------------------------
+st.markdown('<div class="section-title">Sales Distribution</div>', unsafe_allow_html=True)
 
-    fig, ax = plt.subplots()
-    ax.pie(
-        product_share,
-        labels=product_share.index,
-        autopct="%1.0f%%",
-        startangle=90,
-        wedgeprops=dict(width=0.4)
+donut_df = filtered_df.groupby(product_col)[sales_col].sum().reset_index()
+
+fig = go.Figure(go.Pie(
+    labels=donut_df[product_col],
+    values=donut_df[sales_col],
+    hole=0.65
+))
+fig.update_layout(
+    annotations=[dict(text="Share", x=0.5, y=0.5, showarrow=False)],
+    template="plotly_dark",
+    height=350
+)
+st.plotly_chart(fig, use_container_width=True)
+
+# --------------------------------------------------
+# REVENUE BY PRODUCT (ROUNDED BARS)
+# --------------------------------------------------
+st.markdown('<div class="section-title">Revenue by Product</div>', unsafe_allow_html=True)
+
+prod_df = filtered_df.groupby(product_col)[sales_col].sum().reset_index()
+
+fig = px.bar(
+    prod_df,
+    x=sales_col,
+    y=product_col,
+    orientation="h",
+    template="plotly_dark",
+    text_auto=".2s"
+)
+
+fig.update_traces(
+    marker=dict(
+        color="#6D7CFF",
+        line=dict(width=0),
+        cornerradius=12
     )
-    st.pyplot(fig)
-    st.markdown('</div>', unsafe_allow_html=True)
+)
+
+fig.update_layout(
+    height=300,
+    bargap=0.35,
+    xaxis_title="Sales",
+    yaxis_title="Category",
+    showlegend=False
+)
+
+st.plotly_chart(fig, use_container_width=True)
 
 # --------------------------------------------------
-# SECOND ROW
+# MONTHLY ORDERS (ROUNDED BARS)
 # --------------------------------------------------
-c3, c4 = st.columns(2)
+st.markdown('<div class="section-title">Monthly Orders</div>', unsafe_allow_html=True)
 
-with c3:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Revenue by Product</div>', unsafe_allow_html=True)
+orders_df = filtered_df.groupby("YearMonth").size().reset_index(name="Orders")
 
-    product_rev = filtered_df.groupby(product_col)[sales_col].sum().sort_values()
+fig = px.bar(
+    orders_df,
+    x="YearMonth",
+    y="Orders",
+    template="plotly_dark"
+)
 
-    fig, ax = plt.subplots()
-    ax.barh(product_rev.index, product_rev.values)
-    st.pyplot(fig, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+fig.update_traces(
+    marker=dict(
+        color="#6D7CFF",
+        line=dict(width=0),
+        cornerradius=10
+    )
+)
 
-with c4:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Monthly Orders</div>', unsafe_allow_html=True)
+fig.update_layout(
+    height=300,
+    bargap=0.45,
+    xaxis_title="Month",
+    yaxis_title="Orders",
+    showlegend=False
+)
 
-    monthly_orders = filtered_df.groupby("Month").size()
-
-    fig, ax = plt.subplots()
-    ax.bar(monthly_orders.index, monthly_orders.values)
-    st.pyplot(fig, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
+st.plotly_chart(fig, use_container_width=True)
